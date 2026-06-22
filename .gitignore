@@ -1,0 +1,36 @@
+# ── Dataset (3 GB — demasiado grande para GitHub) ──────────────────
+dataset_combinado/
+
+# ── Runs de entrenamiento (solo conservar best.pt) ─────────────────
+runs/semaforo/exp1_yolov8s/
+runs/semaforo/exp2_yolov8s_50ep/weights/last.pt
+runs/semaforo/exp2_yolov8s_50ep/train_batch*.jpg
+runs/semaforo/exp2_yolov8s_50ep/val_batch*.jpg
+
+# ── Modelo base de Ultralytics (se descarga automáticamente) ───────
+yolov8s.pt
+
+# ── Videos de prueba cargados en tiempo de ejecución ──────────────
+demo/uploads/
+
+# ── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# ── Jupyter checkpoints ───────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Archivos temporales y backups ─────────────────────────────────
+*.bak
+*.tmp
+*.log
+/tmp/
+
+# ── IDEs ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Semáforo Inteligente · Demo IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #060912;
+  --bg2:       #0b1020;
+  --bg3:       #111827;
+  --border:    #1e2d4a;
+  --border2:   #2a3f60;
+  --blue:      #3b82f6;
+  --blue-dim:  #1d3557;
+  --green:     #10b981;
+  --green-dim: #064e35;
+  --red:       #ef4444;
+  --red-dim:   #4c1111;
+  --yellow:    #f59e0b;
+  --yellow-dim:#4a3000;
+  --text:      #e2e8f0;
+  --text-sub:  #64748b;
+  --text-dim:  #334155;
+  --radius:    12px;
+  --glow-g:    0 0 20px rgba(16,185,129,.5), 0 0 60px rgba(16,185,129,.2);
+  --glow-r:    0 0 20px rgba(239,68,68,.5),  0 0 60px rgba(239,68,68,.2);
+  --glow-y:    0 0 20px rgba(245,158,11,.5), 0 0 60px rgba(245,158,11,.2);
+  --glow-b:    0 0 20px rgba(59,130,246,.4);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #0b1020 0%, #0f1e38 100%);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 120% at 50% -20%, rgba(59,130,246,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.header-left { display: flex; align-items: center; gap: 16px; }
+.header-icon {
+  font-size: 2.4rem;
+  filter: drop-shadow(0 0 12px rgba(16,185,129,.6));
+}
+.header-title h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  background: linear-gradient(90deg, #60a5fa, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header-title p {
+  font-size: .75rem;
+  color: var(--text-sub);
+  margin-top: 2px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.header-right { display: flex; align-items: center; gap: 12px; }
+.badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.badge-gpu { background: rgba(16,185,129,.15); border: 1px solid var(--green); color: var(--green); }
+.badge-cpu { background: rgba(245,158,11,.15); border: 1px solid var(--yellow); color: var(--yellow); }
+.badge-model { background: rgba(59,130,246,.12); border: 1px solid var(--blue); color: var(--blue); }
+.cpu-warning {
+  display: none;
+  margin: 6px 16px 0;
+  padding: 8px 14px;
+  background: rgba(245,158,11,.12);
+  border: 1px solid var(--yellow);
+  border-radius: 8px;
+  font-size: .78rem;
+  color: var(--yellow);
+  align-items: center;
+  gap: 10px;
+}
+.cpu-warning.show { display: flex; }
+.btn-restart-gpu {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--yellow);
+  background: transparent;
+  color: var(--yellow);
+  font-size: .75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-restart-gpu:hover { background: rgba(245,158,11,.2); }
+.btn-restart-gpu:disabled { opacity: .5; cursor: default; }
+
+/* ── MAIN GRID ───────────────────────────────────────────────── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1fr 300px;
+  grid-template-rows: auto auto;
+  gap: 12px;
+  padding: 12px 16px;
+  min-height: calc(100vh - 140px);
+}
+
+/* ── CAMERA PANELS ───────────────────────────────────────────── */
+.cam-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color .4s;
+}
+.cam-panel.green { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+.cam-panel.red   { border-color: var(--red);   box-shadow: 0 0 0 1px var(--red); }
+.cam-panel.yellow{ border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow); }
+
+.cam-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.cam-label { font-size: .8rem; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-sub); }
+.cam-status { font-size: .72rem; padding: 2px 10px; border-radius: 999px; font-weight: 500; }
+.cam-status.ok      { background: rgba(16,185,129,.15); color: var(--green); }
+.cam-status.waiting { background: rgba(100,116,139,.15); color: var(--text-sub); }
+.cam-status.alert   { background: rgba(239,68,68,.2); color: var(--red); }
+
+.cam-video-wrap {
+  position: relative;
+  background: #040709;
+  flex: 1;
+  min-height: 0;
+}
+.cam-video-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Upload zone (shown before video loads) */
+.upload-zone {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  border: 2px dashed var(--border2);
+  background: var(--bg2);
+  transition: all .2s;
+  z-index: 10;
+}
+.upload-zone:hover, .upload-zone.drag { border-color: var(--blue); background: rgba(59,130,246,.05); }
+.upload-zone.hidden { display: none; }
+.upload-icon { font-size: 3rem; opacity: .5; }
+.upload-text { font-size: .85rem; color: var(--text-sub); text-align: center; line-height: 1.5; }
+.upload-text strong { color: var(--blue); }
+.upload-filename { font-size: .75rem; color: var(--green); font-weight: 500; margin-top: 4px; }
+input[type=file] { display: none; }
+
+.cam-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg3);
+  border-top: 1px solid var(--border);
+}
+.det-badge {
+  display: flex;
+  gap: 10px;
+  font-size: .75rem;
+}
+.det-item { display: flex; align-items: center; gap: 5px; }
+.det-dot { width: 8px; height: 8px; border-radius: 50%; }
+.det-dot.peat { background: #00dcdc; }
+.det-dot.veh  { background: #3296ff; }
+.det-dot.emrg { background: #ef4444; }
+.det-count { font-weight: 600; }
+
+/* ── CONTROL PANEL ───────────────────────────────────────────── */
+.control-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  grid-row: 1 / 3;
+}
+
+.section-title {
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* Traffic lights */
+.traffic-lights { display: flex; flex-direction: column; gap: 16px; }
+.tl-row { display: flex; align-items: center; gap: 12px; }
+.tl-info { flex: 1; }
+.tl-street { font-size: .78rem; font-weight: 600; color: var(--text); }
+.tl-direction { font-size: .68rem; color: var(--text-sub); margin-top: 2px; }
+.tl-state-text {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  margin-top: 6px;
+  transition: color .4s;
+}
+.tl-state-text.green  { color: var(--green); text-shadow: 0 0 10px rgba(16,185,129,.5); }
+.tl-state-text.red    { color: var(--red);   text-shadow: 0 0 10px rgba(239,68,68,.5); }
+.tl-state-text.yellow { color: var(--yellow);text-shadow: 0 0 10px rgba(245,158,11,.5); }
+
+/* SVG traffic light */
+.tl-svg-wrap { flex-shrink: 0; }
+.tl-lamp {
+  fill: #1e2438;
+  stroke: #2a3550;
+  stroke-width: 1;
+  transition: fill .4s, filter .4s;
+}
+.tl-lamp.active-red    { fill: #ef4444; stroke: #ff6666; filter: var(--glow-r); }
+.tl-lamp.active-yellow { fill: #f59e0b; stroke: #ffc94d; filter: var(--glow-y); }
+.tl-lamp.active-green  { fill: #10b981; stroke: #34d399; filter: var(--glow-g); }
+
+/* Decision box */
+.decision-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.decision-fase {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+  transition: color .4s;
+}
+.decision-motivo { font-size: .73rem; color: var(--text-sub); line-height: 1.4; }
+
+/* Stats */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.stat-val { font-size: 1.4rem; font-weight: 700; color: var(--blue); }
+.stat-label { font-size: .65rem; color: var(--text-sub); margin-top: 2px; text-transform: uppercase; letter-spacing: .5px; }
+
+/* Buttons */
+.btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: .9rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .5px;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-start {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(16,185,129,.3);
+}
+.btn-start:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(16,185,129,.45); }
+.btn-start:disabled { background: #1e2d4a; color: var(--text-sub); box-shadow: none; transform: none; cursor: not-allowed; }
+.btn-stop {
+  background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(239,68,68,.3);
+}
+.btn-stop:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(239,68,68,.45); }
+.btn-reset { background: var(--bg3); color: var(--text-sub); border: 1px solid var(--border); margin-top: 6px; padding: 8px; font-size: .78rem; }
+.btn-reset:hover { border-color: var(--border2); color: var(--text); }
+
+.btn-group { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
+
+/* ── DECISION BAR ────────────────────────────────────────────── */
+.decision-bar {
+  grid-column: 1 / 3;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: border-color .4s, background .4s;
+}
+.decision-bar.green  { border-color: var(--green); background: rgba(16,185,129,.06); }
+.decision-bar.red    { border-color: var(--red);   background: rgba(239,68,68,.06); }
+.decision-bar.yellow { border-color: var(--yellow); background: rgba(245,158,11,.06); }
+.decision-bar.emerg  { border-color: var(--red); background: rgba(239,68,68,.12); animation: pulse-border 1s ease-in-out infinite; }
+
+@keyframes pulse-border {
+  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(239,68,68,.0); }
+}
+
+.db-left { display: flex; align-items: center; gap: 16px; }
+.db-label { font-size: .7rem; color: var(--text-sub); text-transform: uppercase; letter-spacing: 1px; }
+.db-fase  { font-size: 1.4rem; font-weight: 900; letter-spacing: 1px; transition: color .4s; }
+.db-motivo{ font-size: .82rem; color: var(--text-sub); }
+.db-streets { display: flex; gap: 24px; }
+.db-street-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.db-street-name { font-size: .68rem; text-transform: uppercase; letter-spacing: .8px; color: var(--text-sub); }
+.db-street-light {
+  font-size: .95rem;
+  font-weight: 700;
+  padding: 4px 18px;
+  border-radius: 999px;
+  letter-spacing: .5px;
+  transition: all .4s;
+}
+.db-street-light.green  { background: rgba(16,185,129,.2); color: var(--green); border: 1px solid var(--green); }
+.db-street-light.red    { background: rgba(239,68,68,.15); color: var(--red);   border: 1px solid var(--red); }
+.db-street-light.yellow { background: rgba(245,158,11,.15); color: var(--yellow);border: 1px solid var(--yellow); }
+
+.db-fps { font-size: .75rem; color: var(--text-sub); white-space: nowrap; }
+.db-fps span { color: var(--blue); font-weight: 600; }
+
+/* ── EMERGENCY OVERLAY ───────────────────────────────────────── */
+.emerg-banner {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d);
+  padding: 8px;
+  text-align: center;
+  font-size: .9rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+  z-index: 999;
+  animation: blink-banner .8s step-end infinite;
+}
+.emerg-banner.show { display: block; }
+@keyframes blink-banner {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+</style>
+</head>
+<body>
+
+<!-- Emergency banner -->
+<div class="emerg-banner" id="emergBanner">🚨 VEHÍCULO DE EMERGENCIA DETECTADO — PRIORIDAD ACTIVA 🚨</div>
+
+<!-- ── HEADER ─────────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <div class="header-icon">🚦</div>
+    <div class="header-title">
+      <h1>Sistema de Semáforo Inteligente</h1>
+      <p>Detección de objetos con Deep Learning · Diplomado IA · UBB 2026</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="badge badge-gpu" id="deviceBadge">⚡ {{ device|upper }}</span>
+    <span class="badge badge-model" id="modelBadge">📦 {{ model }}</span>
+  </div>
+</header>
+<div class="cpu-warning" id="cpuWarning">
+  ⚠️ Corriendo en <strong>CPU</strong> — inferencia lenta. GPU no disponible.
+  <button class="btn-restart-gpu" id="btnRestartGPU" onclick="restartGPU()">Reiniciar con GPU</button>
+</div>
+
+<!-- ── MAIN GRID ──────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- CAM 1 — SUR -->
+  <div class="cam-panel" id="camPanel1">
+    <div class="cam-header">
+      <span class="cam-label">📹 Cámara 1 — Sur → Norte</span>
+      <span class="cam-status waiting" id="camStatus1">Esperando video</span>
+    </div>
+    <div class="cam-video-wrap" style="height:360px;">
+      <img id="camFeed1" src="/stream/cam1" alt="Cámara 1" onerror="setTimeout(()=>{this.src='/stream/cam1?t='+Date.now()},2000)"/>
+      <div class="upload-zone" id="uploadZone1" onclick="triggerUpload(1)">
+        <div class="upload-icon">🎬</div>
+        <div class="upload-text">
+          <strong>Haz clic o arrastra</strong><br/>
+          para cargar el video de la Cámara SUR<br/>
+          <small>MP4 · AVI · MOV · MKV</small>
+        </div>
+        <div class="upload-filename" id="filename1"></div>
+      </div>
+      <input type="file" id="fileInput1" accept="video/*" onchange="uploadVideo(1, this)"/>
+    </div>
+  </div>
+
+  <!-- CAM 2 — ESTE -->
+  <div class="cam-panel" id="camPanel2">
+    <div class="cam-header">
+      <span class="cam-label">📹 Cámara 2 — Este → Oeste</span>
+      <span class="cam-status waiting" id="camStatus2">Esperando video</span>
+    </div>
+    <div class="cam-video-wrap" style="height:360px;">
+      <img id="camFeed2" src="/stream/cam2" alt="Cámara 2" onerror="setTimeout(()=>{this.src='/stream/cam2?t='+Date.now()},2000)"/>
+      <div class="upload-zone" id="uploadZone2" onclick="triggerUpload(2)">
+        <div class="upload-icon">🎬</div>
+        <div class="upload-text">
+          <strong>Haz clic o arrastra</strong><br/>
+          para cargar el video de la Cámara ESTE<br/>
+          <small>MP4 · AVI · MOV · MKV</small>
+        </div>
+        <div class="upload-filename" id="filename2"></div>
+      </div>
+      <input type="file" id="fileInput2" accept="video/*" onchange="uploadVideo(2, this)"/>
+    </div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div class="control-panel">
+
+    <!-- Traffic lights -->
+    <div>
+      <div class="section-title">Estado del Semáforo</div>
+      <div class="traffic-lights">
+        <!-- SUR -->
+        <div class="tl-row">
+          <div class="tl-svg-wrap">
+            <svg width="42" height="110" viewBox="0 0 42 110">
+              <rect x="2" y="2" width="38" height="106" rx="8" fill="#0d1526" stroke="#1e2d4a" stroke-width="1.5"/>
+              <circle cx="21" cy="22"  r="14" class="tl-lamp" id="tl-sn-red"/>
+              <circle cx="21" cy="55"  r="14" class="tl-lamp" id="tl-sn-yel"/>
+              <circle cx="21" cy="88"  r="14" class="tl-lamp" id="tl-sn-grn"/>
+            </svg>
+          </div>
+          <div class="tl-info">
+            <div class="tl-street">Sur → Norte</div>
+            <div class="tl-direction">cam_sur</div>
+            <div class="tl-state-text" id="tlTextSN">● ESPERA</div>
+          </div>
+        </div>
+        <!-- ESTE -->
+        <div class="tl-row">
+          <div class="tl-svg-wrap">
+            <svg width="42" height="110" viewBox="0 0 42 110">
+              <rect x="2" y="2" width="38" height="106" rx="8" fill="#0d1526" stroke="#1e2d4a" stroke-width="1.5"/>
+              <circle cx="21" cy="22"  r="14" class="tl-lamp" id="tl-eo-red"/>
+              <circle cx="21" cy="55"  r="14" class="tl-lamp" id="tl-eo-yel"/>
+              <circle cx="21" cy="88"  r="14" class="tl-lamp" id="tl-eo-grn"/>
+            </svg>
+          </div>
+          <div class="tl-info">
+            <div class="tl-street">Este → Oeste</div>
+            <div class="tl-direction">cam_este</div>
+            <div class="tl-state-text" id="tlTextEO">● ESPERA</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision -->
+    <div>
+      <div class="section-title">Decisión del Controlador</div>
+      <div class="decision-box">
+        <div class="decision-fase" id="ctrlFase">—</div>
+        <div class="decision-motivo" id="ctrlMotivo">Carga los videos y presiona Iniciar</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div>
+      <div class="section-title">Métricas en Tiempo Real</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="statFPS">—</div>
+          <div class="stat-label">FPS</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statFrames">—</div>
+          <div class="stat-label">Frames</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statDet1">—</div>
+          <div class="stat-label">Det. Cam1</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statDet2">—</div>
+          <div class="stat-label">Det. Cam2</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-group">
+      <button class="btn btn-start" id="btnStart" onclick="startSim()" disabled>
+        ▶ Iniciar Simulación
+      </button>
+      <button class="btn btn-stop" id="btnStop" onclick="stopSim()" style="display:none">
+        ■ Detener
+      </button>
+      <button class="btn btn-reset" onclick="resetSim()">↺ Reiniciar</button>
+    </div>
+
+  </div><!-- /control-panel -->
+
+
+</div><!-- /main -->
+
+<script>
+// ── Estado local ──────────────────────────────────────────────
+const uploaded = { 1: false, 2: false };
+let running = false;
+let es = null;
+
+// ── Upload ────────────────────────────────────────────────────
+function triggerUpload(cam) {
+  document.getElementById(`fileInput${cam}`).click();
+}
+
+async function uploadVideo(cam, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const zone = document.getElementById(`uploadZone${cam}`);
+  const status = document.getElementById(`camStatus${cam}`);
+  zone.querySelector('.upload-filename').textContent = '⏳ Subiendo...';
+  status.textContent = 'Subiendo...';
+  status.className = 'cam-status waiting';
+
+  const fd = new FormData();
+  fd.append('video', file);
+  try {
+    const r = await fetch(`/upload/${cam}`, { method: 'POST', body: fd });
+    const j = await r.json();
+    if (j.ok) {
+      uploaded[cam] = true;
+      zone.querySelector('.upload-filename').textContent = `✅ ${file.name}`;
+      status.textContent = 'Listo';
+      status.className = 'cam-status ok';
+      checkReady();
+    } else {
+      zone.querySelector('.upload-filename').textContent = `❌ ${j.error}`;
+      status.textContent = 'Error';
+      status.className = 'cam-status alert';
+    }
+  } catch(e) {
+    zone.querySelector('.upload-filename').textContent = '❌ Error de conexión';
+  }
+}
+
+// Drag & drop
+[1, 2].forEach(cam => {
+  const zone = document.getElementById(`uploadZone${cam}`);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const input = document.getElementById(`fileInput${cam}`);
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    uploadVideo(cam, input);
+  });
+});
+
+function checkReady() {
+  const btn = document.getElementById('btnStart');
+  btn.disabled = !(uploaded[1] && uploaded[2]);
+}
+
+// ── Simulation control ────────────────────────────────────────
+async function startSim() {
+  const r = await fetch('/start', { method: 'POST' });
+  const j = await r.json();
+  if (!j.ok) { alert(j.error); return; }
+
+  running = true;
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnStop').style.display = 'block';
+  [1, 2].forEach(c => document.getElementById(`uploadZone${c}`).classList.add('hidden'));
+  startSSE();
+}
+
+async function stopSim() {
+  await fetch('/stop', { method: 'POST' });
+  running = false;
+  document.getElementById('btnStart').style.display = 'block';
+  document.getElementById('btnStop').style.display = 'none';
+  if (es) { es.close(); es = null; }
+}
+
+async function resetSim() {
+  if (es) { es.close(); es = null; }
+  await fetch('/reset', { method: 'POST' });
+  running = false;
+  uploaded[1] = uploaded[2] = false;
+  [1, 2].forEach(c => {
+    document.getElementById(`uploadZone${c}`).classList.remove('hidden');
+    document.getElementById(`filename${c}`).textContent = '';
+    document.getElementById(`camStatus${c}`).textContent = 'Esperando video';
+    document.getElementById(`camStatus${c}`).className = 'cam-status waiting';
+    document.getElementById(`fileInput${c}`).value = '';
+  });
+  document.getElementById('btnStart').style.display = 'block';
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').style.display = 'none';
+  resetUI();
+}
+
+function resetUI() {
+  setTL('sn', 'red');
+  setTL('eo', 'red');
+  document.getElementById('tlTextSN').textContent = '● ROJO';
+  document.getElementById('tlTextSN').className   = 'tl-state-text red';
+  document.getElementById('tlTextEO').textContent = '● ROJO';
+  document.getElementById('tlTextEO').className   = 'tl-state-text red';
+  document.getElementById('ctrlFase').textContent   = '—';
+  document.getElementById('ctrlMotivo').textContent = 'Carga los videos para comenzar';
+  ['statFPS','statFrames','statDet1','statDet2'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  document.getElementById('emergBanner').classList.remove('show');
+  document.getElementById('camPanel1').className = 'cam-panel red';
+  document.getElementById('camPanel2').className = 'cam-panel red';
+}
+
+// ── SSE ───────────────────────────────────────────────────────
+function startSSE() {
+  es = new EventSource('/events');
+  es.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (!d.running && running) {
+      running = false;
+      document.getElementById('btnStart').style.display = 'block';
+      document.getElementById('btnStop').style.display = 'none';
+    }
+    updateUI(d);
+  };
+}
+
+// ── UI update ─────────────────────────────────────────────────
+function updateUI(d) {
+  const fase      = d.decision.fase;
+  const motivo    = d.decision.motivo;
+  const camPrio   = d.decision.cam_prio;
+  const faseAnt   = d.decision.fase_anterior;
+  const faseSig   = d.decision.fase_siguiente;
+  const emergCam  = d.decision.emerg_cam;
+  const stats     = d.stats;
+  const device    = d.device || 'cpu';
+
+  // Device badge
+  const badge = document.getElementById('deviceBadge');
+  badge.textContent = device === 'cuda' ? '⚡ GPU' : '🐢 CPU';
+  badge.className   = 'badge ' + (device === 'cuda' ? 'badge-gpu' : 'badge-cpu');
+  document.getElementById('cpuWarning').classList.toggle('show', device !== 'cuda');
+
+  // Control panel
+  document.getElementById('ctrlFase').textContent   = fase;
+  document.getElementById('ctrlMotivo').textContent = motivo;
+  document.getElementById('statFPS').textContent    = stats.fps;
+  document.getElementById('statFrames').textContent = stats.frames;
+  document.getElementById('statDet1').textContent   = stats.det1;
+  document.getElementById('statDet2').textContent   = stats.det2;
+
+  // Emergency banner
+  const emBanner = document.getElementById('emergBanner');
+  emBanner.classList.toggle('show', stats.emergencia);
+
+  // Compute per-street state
+  let snState = 'yellow', eoState = 'yellow';
+  let snText = '● PRECAUCIÓN', eoText = '● PRECAUCIÓN';
+
+  if (fase === 'FASE_SN') {
+    snState = 'green'; snText = '● VERDE'; eoState = 'red'; eoText = '● ROJO';
+  } else if (fase === 'FASE_EO') {
+    eoState = 'green'; eoText = '● VERDE'; snState = 'red'; snText = '● ROJO';
+  } else if (fase === 'TRANSICION') {
+    if (faseAnt === 'FASE_SN') {
+      snState = 'yellow'; snText = '● AMARILLO';
+      eoState = 'red';    eoText = '● ROJO';
+    } else if (faseAnt === 'FASE_EO') {
+      snState = 'red';    snText = '● ROJO';
+      eoState = 'yellow'; eoText = '● AMARILLO';
+    } else if (faseAnt === 'EMERGENCIA') {
+      // Salida de emergencia: la cam que tenía verde pasa a amarillo si cambia
+      const snGetGreen = (faseSig === 'FASE_SN');
+      const snHadGreen = (emergCam === 'cam_sur');
+      if (snHadGreen && !snGetGreen) {
+        snState = 'yellow'; snText = '● AMARILLO';
+        eoState = 'red';    eoText = '● ROJO';
+      } else if (!snHadGreen && snGetGreen) {
+        snState = 'red';    snText = '● ROJO';
+        eoState = 'yellow'; eoText = '● AMARILLO';
+      } else {
+        snState = snGetGreen ? 'green' : 'red';
+        snText  = snGetGreen ? '● VERDE' : '● ROJO';
+        eoState = snGetGreen ? 'red' : 'green';
+        eoText  = snGetGreen ? '● ROJO' : '● VERDE';
+      }
+    }
+  } else if (fase === 'EMERGENCIA') {
+    if (camPrio === 'cam_sur') {
+      snState = 'green'; snText = '🚨 VERDE'; eoState = 'red'; eoText = '● ROJO';
+    } else {
+      eoState = 'green'; eoText = '🚨 VERDE'; snState = 'red'; snText = '● ROJO';
+    }
+  } else if (fase === 'FALLA_SEGURA') {
+    snState = 'yellow'; snText = '⚠ FALLA'; eoState = 'yellow'; eoText = '⚠ FALLA';
+  }
+
+  setLights(fase, { sn: snState, eo: eoState });
+
+  // Traffic light SVGs
+  setTL('sn', snState);
+  setTL('eo', eoState);
+
+  // Text labels
+  const tlSN = document.getElementById('tlTextSN');
+  tlSN.textContent = snText;
+  tlSN.className   = `tl-state-text ${snState}`;
+  const tlEO = document.getElementById('tlTextEO');
+  tlEO.textContent = eoText;
+  tlEO.className   = `tl-state-text ${eoState}`;
+
+  // Camera panels border
+  document.getElementById('camPanel1').className = `cam-panel ${snState}`;
+  document.getElementById('camPanel2').className = `cam-panel ${eoState}`;
+
+  // Fase text color
+  const faseEl = document.getElementById('dbFase');
+  faseEl.style.color =
+    fase === 'FASE_SN'       ? 'var(--green)'  :
+    fase === 'FASE_EO'       ? 'var(--blue)'   :
+    fase === 'TRANSICION'    ? 'var(--yellow)' :
+    fase === 'EMERGENCIA'    ? 'var(--red)'    :
+    fase === 'FALLA_SEGURA'  ? 'var(--yellow)' : 'var(--text-sub)';
+
+}
+
+function setTL(which, state) {
+  const r = document.getElementById(`tl-${which}-red`);
+  const y = document.getElementById(`tl-${which}-yel`);
+  const g = document.getElementById(`tl-${which}-grn`);
+  r.className = 'tl-lamp' + (state === 'red'    ? ' active-red'    : '');
+  y.className = 'tl-lamp' + (state === 'yellow' ? ' active-yellow' : '');
+  g.className = 'tl-lamp' + (state === 'green'  ? ' active-green'  : '');
+}
+
+function setLights(fase) {
+  // handled inline in updateUI
+}
+
+async function restartGPU() {
+  const btn = document.getElementById('btnRestartGPU');
+  btn.disabled = true;
+  btn.textContent = 'Reiniciando...';
+  try { await fetch('/restart-gpu', { method: 'POST' }); } catch(e) {}
+  // Esperar y recargar hasta que el servidor responda
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/');
+      if (r.ok) { clearInterval(poll); location.reload(); }
+    } catch(e) { /* servidor aún reiniciando */ }
+  }, 2000);
+}
+
+// Estado inicial al cargar
+resetUI();
+</script>
+</body>
+</html>
