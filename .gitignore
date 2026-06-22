@@ -1,5 +1,6 @@
-# ── Dataset (3 GB — demasiado grande para GitHub) ──────────────────
+# ── Datasets (demasiado grandes para GitHub) ────────────────────────
 dataset_combinado/
+datasets/
 
 # ── Runs de entrenamiento (solo conservar best.pt) ─────────────────
 runs/semaforo/exp1_yolov8s/
